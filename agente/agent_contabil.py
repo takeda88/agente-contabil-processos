@@ -31,8 +31,8 @@ class AgenteContabil:
         from modulos.word_module import WordModule
         from modulos.pastas_module import PastasModule
         from modulos.web_scraping_module import WebScrapingModule
-        from modulos.pdf_module import PDFModule
-        from modulos.sped_module import SPEDModule
+        from modulos.pdf_module import PdfModule 
+        from modulos.sped_module import SpedModule
         from modulos.notificacoes_module import NotificacoesModule
         from contabilidade.classificador import ClassificadorContabil
         from contabilidade.conciliacao import ConciliacaoBancaria
@@ -46,7 +46,7 @@ class AgenteContabil:
         self.word = WordModule()
         self.pastas = PastasModule()
         self.scraping = WebScrapingModule()
-        self.pdf = PDFModule()
+        self.pdf = ()
         self.sped = SPEDModule()
         self.notificacoes = NotificacoesModule(self.email, self.whatsapp)
         self.classificador = ClassificadorContabil()
