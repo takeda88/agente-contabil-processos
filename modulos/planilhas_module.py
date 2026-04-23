@@ -113,42 +113,51 @@ class PlanilhasModule:
 
     def salvar(self, dados: Any, caminho: str, aba: str = 'Dados'):
         """
-        Salva dados em arquivo Excel.
-
-        Args:
-            dados: Lista de dicionarios ou DataFrame
-            caminho: Caminho de destino
-            aba: Nome da aba
+        Salva dados em arquivo Excel usando openpyxl.
         """
-        import pandas as pd
         from openpyxl import Workbook
         from openpyxl.styles import Font, PatternFill, Alignment
 
         os.makedirs(os.path.dirname(caminho) if os.path.dirname(caminho) else '.', exist_ok=True)
 
         try:
-            if isinstance(dados, list):
-                df = pd.DataFrame(dados)
-            elif isinstance(dados, dict):
-                df = pd.DataFrame([dados])
-            else:
-                df = dados
+            wb = Workbook()
+            ws = wb.active
+            ws.title = aba
 
-            with pd.ExcelWriter(caminho, engine='openpyxl') as writer:
-                df.to_excel(writer, sheet_name=aba, index=False)
+            if not dados:
+                wb.save(caminho)
+                self.logger.info(f"Planilha salva em {caminho}")
+                return caminho
 
-                # Formata cabecalho
-                ws = writer.sheets[aba]
+            if isinstance(dados, dict):
+                dados = [dados]
+
+            if isinstance(dados, list) and len(dados) > 0 and isinstance(dados[0], dict):
+                headers = list(dados[0].keys())
+                ws.append(headers)
+
+                for item in dados:
+                    ws.append([item.get(col, '') for col in headers])
+
                 for cell in ws[1]:
                     cell.font = Font(bold=True, color='FFFFFF')
                     cell.fill = PatternFill(fill_type='solid', fgColor='1F4E79')
                     cell.alignment = Alignment(horizontal='center')
 
-                # Ajusta largura das colunas
                 for col in ws.columns:
                     max_len = max(len(str(cell.value or '')) for cell in col)
                     ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 50)
 
+            else:
+                ws.append(['valor'])
+                if isinstance(dados, list):
+                    for item in dados:
+                        ws.append([item])
+                else:
+                    ws.append([dados])
+
+            wb.save(caminho)
             self.logger.info(f"Planilha salva em {caminho}")
             return caminho
 

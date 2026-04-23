@@ -15,8 +15,8 @@ class RelatoriosContabeis:
     Modulo responsavel por geracao de relatorios contabeis.
     """
 
-    def __init__(self):
-        """Inicializa o modulo de relatorios."""
+    def __init__(self, planilhas_module=None):
+        self.planilhas = planilhas_module
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.info("RelatoriosContabeis inicializado")
 

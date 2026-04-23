@@ -15,11 +15,10 @@ class ConciliacaoBancaria:
     Modulo responsavel por conciliacao bancaria.
     """
 
-    def __init__(self):
-        """Inicializa o modulo de conciliacao."""
+    def __init__(self, classificador=None):
+        self.classificador = classificador
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.margem_tolerancia = float(os.getenv('CONCILIACAO_TOLERANCIA', '0.01'))
-        self.logger.info("ConciliacaoBancaria inicializada")
+        self.logger.info("ConciliacaoBancaria inicializado")
 
     def conciliar(self, extrato_bancario: List[Dict], lancamentos_contabeis: List[Dict]) -> Dict:
         """

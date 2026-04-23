@@ -1,8 +1,4 @@
-"""
-Modulo SPED do agente contabil.
-"""
-
-"""
+sped_module.py  """
 Modulo para leitura e processamento de arquivos SPED (ECD, ECF, EFD).
 Valida estrutura, extrai registros e exporta dados para Excel.
 """

@@ -15,12 +15,49 @@ class NotificacoesModule:
     Modulo responsavel por envio de notificacoes.
     """
 
-    def __init__(self):
+    def __init__(self, email_module=None, whatsapp_module=None):
         """Inicializa o modulo de notificacoes."""
+        self.email = email_module
+        self.whatsapp = whatsapp_module
         self.logger = logging.getLogger(self.__class__.__name__)
         self.log_file = os.getenv('NOTIFICACOES_LOG', 'dados/logs/notificacoes.json')
         os.makedirs(os.path.dirname(self.log_file), exist_ok=True)
         self.logger.info("NotificacoesModule inicializado")
+
+    def alertar_vencimentos(self, vencimentos: List[Dict]) -> Dict:
+        """
+        Envia alertas para uma lista de vencimentos.
+        """
+        try:
+            resultados = {
+                'total': len(vencimentos),
+                'enviados': 0,
+                'falhas': 0,
+                'detalhes': []
+            }
+
+            for vencimento in vencimentos:
+                canais = vencimento.get('canais', ['email', 'whatsapp'])
+                retorno = self.notificar_vencimento(vencimento, canais)
+
+                sucesso = any(bool(v) for v in retorno.values()) if isinstance(retorno, dict) else False
+
+                resultados['detalhes'].append({
+                    'descricao': vencimento.get('descricao', 'Sem descricao'),
+                    'resultado': retorno
+                })
+
+                if sucesso:
+                    resultados['enviados'] += 1
+                else:
+                    resultados['falhas'] += 1
+
+            self.logger.info(f"{resultados['enviados']} alertas enviados, {resultados['falhas']} falhas")
+            return resultados
+
+        except Exception as e:
+            self.logger.error(f"Erro ao alertar vencimentos: {e}")
+            return {'erro': str(e)}    
 
     def enviar_whatsapp(self, numero: str, mensagem: str) -> bool:
         """
@@ -38,10 +75,13 @@ class NotificacoesModule:
             
             # Importa modulo WhatsApp
             try:
-                from modulos.whatsapp_module import WhatsAppModule
-                whatsapp = WhatsAppModule()
-                resultado = whatsapp.enviar_mensagem(numero, mensagem)
-                
+                if self.whatsapp:
+                    resultado = self.whatsapp.enviar_mensagem(numero, mensagem)
+                else:
+                    from modulos.whatsapp_module import WhatsAppModule
+                    whatsapp = WhatsAppModule()
+                    resultado = whatsapp.enviar_mensagem(numero, mensagem)
+                                
                 self._registrar_notificacao({
                     'tipo': 'whatsapp',
                     'destinatario': numero,
@@ -76,13 +116,20 @@ class NotificacoesModule:
             self.logger.info(f"Enviando email para {destinatario}")
             
             try:
-                from modulos.email_module import EmailModule
-                email_mod = EmailModule()
-                resultado = email_mod.enviar_email(
-                    destinatario=destinatario,
-                    assunto=assunto,
-                    corpo=corpo
-                )
+                if self.email:
+                    resultado = self.email.enviar(
+                        destinatario=destinatario,
+                        assunto=assunto,
+                        corpo=corpo
+                    )
+                else:
+                    from modulos.email_module import EmailModule
+                    email_mod = EmailModule()
+                    resultado = email_mod.enviar(
+                        destinatario=destinatario,
+                        assunto=assunto,
+                        corpo=corpo
+                    )
                 
                 self._registrar_notificacao({
                     'tipo': 'email',
