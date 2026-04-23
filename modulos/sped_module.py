@@ -1,0 +1,340 @@
+sped_module.py  """
+Modulo para leitura e processamento de arquivos SPED (ECD, ECF, EFD).
+Valida estrutura, extrai registros e exporta dados para Excel.
+"""
+
+import os
+import re
+import logging
+from typing import Dict, List, Optional
+from openpyxl import Workbook
+
+
+class SpedModule:
+    """
+    Modulo responsavel por operacoes com arquivos SPED.
+    """
+
+    def __init__(self):
+        """Inicializa o modulo SPED."""
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.tipos_sped = {
+            'ECD': 'Escrituracao Contabil Digital',
+            'ECF': 'Escrituracao Contabil Fiscal',
+            'EFD_ICMS_IPI': 'EFD ICMS/IPI',
+            'EFD_CONTRIB': 'EFD Contribuicoes'
+        }
+        self.logger.info("SpedModule inicializado")
+
+    def ler_arquivo(self, caminho: str) -> Dict:
+        """
+        Le e indexa arquivo SPED completo.
+
+        Args:
+            caminho: Caminho do arquivo SPED
+
+        Returns:
+            Dicionario com dados indexados do SPED
+        """
+        try:
+            if not os.path.exists(caminho):
+                self.logger.error(f"Arquivo nao encontrado: {caminho}")
+                return {'erro': 'Arquivo nao encontrado'}
+
+            self.logger.info(f"Lendo arquivo SPED: {caminho}")
+            
+            with open(caminho, 'r', encoding='latin-1') as f:
+                linhas = f.readlines()
+
+            tipo_sped = self._identificar_tipo(caminho)
+            registros = {}
+            
+            for i, linha in enumerate(linhas):
+                linha = linha.strip()
+                if not linha:
+                    continue
+                
+                registro_data = self._parse_linha(linha)
+                codigo_registro = registro_data.get('codigo', 'UNKNOWN')
+                
+                if codigo_registro not in registros:
+                    registros[codigo_registro] = []
+                
+                registros[codigo_registro].append({
+                    'linha': i + 1,
+                    'dados': registro_data
+                })
+
+            resultado = {
+                'arquivo': os.path.basename(caminho),
+                'tipo': tipo_sped,
+                'total_linhas': len(linhas),
+                'total_registros': sum(len(v) for v in registros.values()),
+                'registros_por_tipo': {k: len(v) for k, v in registros.items()},
+                'registros': registros
+            }
+
+            self.logger.info(f"SPED processado: {resultado['total_registros']} registros")
+            return resultado
+
+        except Exception as e:
+            self.logger.error(f"Erro ao ler arquivo SPED {caminho}: {e}")
+            return {'erro': str(e)}
+
+    def extrair_registros(self, sped_data: Dict, registro: str) -> List[Dict]:
+        """
+        Filtra registros especificos do SPED.
+
+        Args:
+            sped_data: Dados do SPED retornados por ler_arquivo()
+            registro: Codigo do registro (ex: '0000', 'I010')
+
+        Returns:
+            Lista de registros filtrados
+        """
+        try:
+            if 'erro' in sped_data:
+                return []
+
+            registros = sped_data.get('registros', {})
+            registros_filtrados = registros.get(registro, [])
+
+            self.logger.info(f"Extraidos {len(registros_filtrados)} registros tipo {registro}")
+            return registros_filtrados
+
+        except Exception as e:
+            self.logger.error(f"Erro ao extrair registros {registro}: {e}")
+            return []
+
+    def validar_estrutura(self, caminho: str) -> Dict:
+        """
+        Valida se arquivo segue estrutura SPED.
+
+        Args:
+            caminho: Caminho do arquivo SPED
+
+        Returns:
+            Dicionario com resultado da validacao
+        """
+        try:
+            if not os.path.exists(caminho):
+                return {'valido': False, 'erros': ['Arquivo nao encontrado']}
+
+            erros = []
+            avisos = []
+
+            with open(caminho, 'r', encoding='latin-1') as f:
+                linhas = f.readlines()
+
+            if not linhas:
+                erros.append('Arquivo vazio')
+            else:
+                primeira_linha = linhas[0].strip()
+                if not primeira_linha.startswith('|0000|'):
+                    erros.append('Registro 0000 (abertura) nao encontrado')
+
+            if len(linhas) > 0:
+                ultima_linha = linhas[-1].strip()
+                if not ultima_linha.startswith('|9999|'):
+                    avisos.append('Registro 9999 (encerramento) nao encontrado')
+
+            for i, linha in enumerate(linhas[:100]):
+                if linha.strip() and not linha.strip().startswith('|'):
+                    erros.append(f"Linha {i+1}: Formato invalido (nao inicia com |)")
+                if linha.strip() and not linha.strip().endswith('|'):
+                    erros.append(f"Linha {i+1}: Formato invalido (nao termina com |)")
+
+            resultado = {
+                'valido': len(erros) == 0,
+                'erros': erros,
+                'avisos': avisos,
+                'total_linhas': len(linhas)
+            }
+
+            self.logger.info(f"Validacao: {'OK' if resultado['valido'] else 'FALHOU'}")
+            return resultado
+
+        except Exception as e:
+            self.logger.error(f"Erro na validacao {caminho}: {e}")
+            return {'valido': False, 'erros': [str(e)]}
+
+    def gerar_resumo(self, caminho: str) -> Dict:
+        """
+        Gera resumo do arquivo SPED.
+
+        Args:
+            caminho: Caminho do arquivo SPED
+
+        Returns:
+            Dicionario com resumo
+        """
+        try:
+            sped_data = self.ler_arquivo(caminho)
+            if 'erro' in sped_data:
+                return sped_data
+
+            reg_0000 = self.extrair_registros(sped_data, '0000')
+            info_empresa = {}
+            
+            if reg_0000:
+                campos_0000 = reg_0000[0]['dados']['campos']
+                if len(campos_0000) > 5:
+                    info_empresa = {
+                        'cnpj': campos_0000[3] if len(campos_0000) > 3 else '',
+                        'razao_social': campos_0000[4] if len(campos_0000) > 4 else '',
+                        'periodo_inicial': campos_0000[5] if len(campos_0000) > 5 else '',
+                        'periodo_final': campos_0000[6] if len(campos_0000) > 6 else ''
+                    }
+
+            resumo = {
+                'arquivo': sped_data['arquivo'],
+                'tipo': sped_data['tipo'],
+                'empresa': info_empresa,
+                'total_linhas': sped_data['total_linhas'],
+                'total_registros': sped_data['total_registros'],
+                'registros_por_bloco': self._agrupar_por_bloco(sped_data['registros_por_tipo'])
+            }
+
+            self.logger.info("Resumo SPED gerado com sucesso")
+            return resumo
+
+        except Exception as e:
+            self.logger.error(f"Erro ao gerar resumo {caminho}: {e}")
+            return {'erro': str(e)}
+
+    def exportar_para_excel(self, caminho: str, destino: str) -> bool:
+        """
+        Exporta registros SPED para Excel.
+
+        Args:
+            caminho: Caminho do arquivo SPED
+            destino: Caminho do arquivo Excel de saida
+
+        Returns:
+            True se sucesso, False caso contrario
+        """
+        try:
+            sped_data = self.ler_arquivo(caminho)
+            if 'erro' in sped_data:
+                return False
+
+            self.logger.info(f"Exportando SPED para Excel: {destino}")
+            
+            wb = Workbook()
+            wb.remove(wb.active)
+
+            ws_resumo = wb.create_sheet("Resumo")
+            ws_resumo.append(["Arquivo", sped_data['arquivo']])
+            ws_resumo.append(["Tipo", sped_data['tipo']])
+            ws_resumo.append(["Total Linhas", sped_data['total_linhas']])
+            ws_resumo.append(["Total Registros", sped_data['total_registros']])
+            ws_resumo.append([])
+            ws_resumo.append(["Tipo Registro", "Quantidade"])
+            
+            for tipo, qtd in sorted(sped_data['registros_por_tipo'].items()):
+                ws_resumo.append([tipo, qtd])
+
+            registros_principais = ['0000', '0001', 'C100', 'C170', 'I010', 'I050']
+            
+            for reg_tipo in registros_principais:
+                registros = self.extrair_registros(sped_data, reg_tipo)
+                if not registros:
+                    continue
+                
+                ws = wb.create_sheet(f"REG_{reg_tipo}")
+                ws.append(["Linha", "Registro Completo"])
+                
+                for reg in registros[:1000]:
+                    linha_num = reg['linha']
+                    linha_completa = '|'.join(reg['dados']['campos'])
+                    ws.append([linha_num, linha_completa])
+
+            os.makedirs(os.path.dirname(destino), exist_ok=True)
+            wb.save(destino)
+            
+            self.logger.info(f"Excel exportado: {destino}")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Erro ao exportar para Excel {caminho}: {e}")
+            return False
+
+    def _parse_linha(self, linha: str) -> Dict:
+        """
+        Parseia linha SPED em campos.
+
+        Args:
+            linha: Linha do arquivo SPED
+
+        Returns:
+            Dicionario com dados parseados
+        """
+        linha = linha.strip()
+        if linha.startswith('|'):
+            linha = linha[1:]
+        if linha.endswith('|'):
+            linha = linha[:-1]
+        
+        campos = linha.split('|')
+        codigo = campos[0] if campos else ''
+        
+        return {
+            'codigo': codigo,
+            'campos': campos
+        }
+
+    def _identificar_tipo(self, caminho: str) -> str:
+        """
+        Identifica tipo de SPED pelo conteudo.
+
+        Args:
+            caminho: Caminho do arquivo
+
+        Returns:
+            Tipo do SPED
+        """
+        try:
+            with open(caminho, 'r', encoding='latin-1') as f:
+                primeira_linha = f.readline()
+            
+            if 'ECD' in primeira_linha.upper():
+                return 'ECD'
+            elif 'ECF' in primeira_linha.upper():
+                return 'ECF'
+            elif '|C100|' in primeira_linha or '|C170|' in primeira_linha:
+                return 'EFD_ICMS_IPI'
+            elif '|F100|' in primeira_linha or '|F120|' in primeira_linha:
+                return 'EFD_CONTRIB'
+            else:
+                nome = os.path.basename(caminho).upper()
+                if 'ECD' in nome:
+                    return 'ECD'
+                elif 'ECF' in nome:
+                    return 'ECF'
+                elif 'EFD' in nome:
+                    return 'EFD_ICMS_IPI'
+                else:
+                    return 'DESCONHECIDO'
+        except Exception:
+            return 'DESCONHECIDO'
+
+    def _agrupar_por_bloco(self, registros_por_tipo: Dict) -> Dict:
+        """
+        Agrupa registros por bloco (letra inicial).
+
+        Args:
+            registros_por_tipo: Dict com qtd de registros por tipo
+
+        Returns:
+            Dict agrupado por bloco
+        """
+        blocos = {}
+        
+        for tipo, qtd in registros_por_tipo.items():
+            if tipo and len(tipo) > 0:
+                bloco = tipo[0]
+                if bloco not in blocos:
+                    blocos[bloco] = 0
+                blocos[bloco] += qtd
+        
+        return blocos
