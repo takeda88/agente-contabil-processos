@@ -1,3 +1,13 @@
+"""Modulo de conciliacao bancaria.
+
+TODO: REFATORAR - Substituir difflib por logica financeira adequada.
+      A reconciliacao deve usar:
+      - Correspondencia exata de valores (Decimal)
+      - Janela de datas (+/- 3 dias)
+      - Matching por historico/descricao
+      Ver RELATORIO_MELHORIAS.md secao 4.1 para detalhes.
+"""
+
 """
 Modulo de Conciliacao Bancaria.
 Cruza extratos bancarios com lancamentos contabeis e identifica divergencias.

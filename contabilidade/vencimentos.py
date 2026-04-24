@@ -219,3 +219,10 @@ class ControleVencimentos:
         except Exception as e:
             self.logger.error(f"Erro ao buscar atrasados: {e}")
             return []
+
+
+# TODO: CALENDARIO FISCAL DINAMICO
+# Considerar integracao com calendario oficial da Receita Federal
+# para vencimentos dinamicos em vez de datas hardcoded.
+# Referencia: Portal e-CAC ou API SERPRO
+# Ver RELATORIO_MELHORIAS.md secao 7.2 para detalhes.

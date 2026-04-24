@@ -1,0 +1,36 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--tb=short",
+    "-v",
+    "--cov=contabilidade",
+    "--cov=automacoes",
+    "--cov=agente",
+    "--cov-report=term-missing",
+    "--cov-report=html:relatorios/cobertura_testes",
+    "--cov-fail-under=30"
+]
+
+[tool.coverage.run]
+omit = [
+    "tests/*",
+    "*/migrations/*",
+    "setup.py",
+    "conftest.py",
+    "*/venv/*",
+    "*/.venv/*"
+]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "pass",
+    "if __name__ == .?__main__.?:"
+]
