@@ -175,15 +175,20 @@ class NotificacoesModule:
             
             self.logger.info(f"Notificando vencimento: {descricao}")
             
-            if 'whatsapp' in canais and contato.get('telefone'):
-                resultados['whatsapp'] = self.enviar_whatsapp(
-                    contato['telefone'],
-                    mensagem
-                )
-            
-            if 'email' in canais and contato.get('email'):
+            telefone = (contato.get('telefone') or
+                        vencimento.get('whatsapp') or
+                        os.getenv('WHATSAPP_ALERTAS', '').split(',')[0].strip())
+
+            email_dest = (contato.get('email') or
+                          vencimento.get('email') or
+                          os.getenv('EMAIL_ALERTAS', '').split(',')[0].strip())
+
+            if 'whatsapp' in canais and telefone:
+                resultados['whatsapp'] = self.enviar_whatsapp(telefone, mensagem)
+
+            if 'email' in canais and email_dest:
                 resultados['email'] = self.enviar_email_alerta(
-                    contato['email'],
+                    email_dest,
                     f"Alerta: Vencimento - {descricao}",
                     mensagem
                 )
